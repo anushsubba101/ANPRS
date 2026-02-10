@@ -68,7 +68,7 @@ function Results({ data }) {
                                 <div className="image-box">
                                     <span className="image-label">Original</span>
                                     {plate.original_plate ? (
-                                        <img className="plate-thumb" src={`data:image/jpeg;base64,${plate.original_plate}`} alt="Original" />
+                                        <img className="plate-thumb" src={plate.original_plate} alt="Original" />
                                     ) : (
                                         <div className="fallback-thumb"><Camera size={16} /></div>
                                     )}
@@ -76,7 +76,7 @@ function Results({ data }) {
                                 <div className="image-box">
                                     <span className="image-label">Deskewed</span>
                                     {plate.deskewed_plate ? (
-                                        <img className="plate-thumb" src={`data:image/jpeg;base64,${plate.deskewed_plate}`} alt="Deskewed" />
+                                        <img className="plate-thumb" src={plate.original_plate} alt="Original" />
                                     ) : (
                                         <div className="fallback-thumb"><Camera size={16} /></div>
                                     )}
@@ -84,7 +84,7 @@ function Results({ data }) {
                                 <div className="image-box">
                                     <span className="image-label">Digital</span>
                                     {plate.digital_plate ? (
-                                        <img className="plate-thumb" src={`data:image/jpeg;base64,${plate.digital_plate}`} alt="Digital" />
+                                        <img className="plate-thumb" src={plate.original_plate} alt="Original" />
                                     ) : (
                                         <div className="fallback-thumb"><Camera size={16} /></div>
                                     )}
