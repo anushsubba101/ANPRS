@@ -1,0 +1,40 @@
+// 1. Success Response (HTTP 200)
+{
+    "success": true,
+    "data": {
+        "results": [
+            {
+                "confidence": 0.89,
+                "final_text": "BAA 1234",
+                "plate_dimensions": {
+                    "width": 200,
+                    "height": 60
+                },
+                "original_plate": "base64String...",
+                "deskewed_plate": "base64String...",
+                "digital_plate": "base64String..."
+            }
+        ],
+        "meta": {
+            "filename": "car_image.jpg",
+            "processed_at": "2026-02-06T19:40:00+05:45",
+            "duration_seconds": 0.452
+        }
+    }
+}
+// 2. Error Response - Missing File (HTTP 400)
+{
+    "success": false,
+    "error": {
+        "code": "MISSING_FILE",
+        "message": "No file part in the request."
+    }
+}
+// 3. Error Response - Unsupported Type (HTTP 415)
+{
+    "success": false,
+    "error": {
+        "code": "UNSUPPORTED_MEDIA_TYPE",
+        "message": "File type '.exe' not supported. Allowed: .png, .jpg, .jpeg, .bmp, .webp, .mp4, .avi, .mov, .mkv"
+    }
+}
