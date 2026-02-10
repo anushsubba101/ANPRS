@@ -26,7 +26,7 @@ function App() {
   return (
     <div className="app-container">
       <header className="app-header">
-        <h1>🇳🇵 Smart ANPR System</h1>
+        <h1>ANPR System</h1>
         <p>Advanced Automatic Number Plate Recognition for Nepal</p>
       </header>
 
