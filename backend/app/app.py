@@ -14,6 +14,7 @@ from utils import to_base64
 from pymongo import MongoClient
 from bson import ObjectId
 import datetime
+import pytz
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s')
 
@@ -49,6 +50,64 @@ app.secret_key = config.FLASK_SECRET_KEY
 mongo_client = MongoClient(config.MONGO_URI)
 db = mongo_client[config.MONGO_DB_NAME]
 predictions_col = db[config.MONGO_COLLECTION_NAME]
+parking_col = db['parking_records']
+
+KATHMANDU_TZ = pytz.timezone('Asia/Kathmandu')
+
+def get_now():
+    return datetime.datetime.now(KATHMANDU_TZ)
+
+def handle_parking_event(plate_text):
+    """
+    Logic to handle vehicle entry and exit.
+    """
+    now = get_now()
+    # Check for active record
+    active_record = parking_col.find_one({"plate_number": plate_text, "status": "active"})
+
+    if not active_record:
+        # ENTRY LOGIC
+        # Determine type: 'च' (Car) or 'प' (Bike)
+        vehicle_type = "unknown"
+        if 'च' in plate_text:
+            vehicle_type = "Car"
+        elif 'प' in plate_text:
+            vehicle_type = "Bike"
+        
+        entry_doc = {
+            "plate_number": plate_text,
+            "entry_time": now,
+            "status": "active",
+            "vehicle_type": vehicle_type
+        }
+        parking_col.insert_one(entry_doc)
+        logging.info(f"Entry recorded: {plate_text} ({vehicle_type})")
+        return {"event": "entry", "plate": plate_text, "type": vehicle_type}
+    
+    else:
+        # EXIT LOGIC
+        entry_time = active_record['entry_time']
+        if entry_time.tzinfo is None:
+            entry_time = pytz.utc.localize(entry_time).astimezone(KATHMANDU_TZ)
+        
+        duration = now - entry_time
+        duration_hours = duration.total_seconds() / 3600
+        
+        # Fee Calculation: Bike 20/hr, Car 50/hr. Min 20.
+        rate = 50 if active_record['vehicle_type'] == "Car" else 20
+        fee = max(20, round(duration_hours * rate))
+        
+        parking_col.update_one(
+            {"_id": active_record["_id"]},
+            {"$set": {
+                "exit_time": now,
+                "status": "completed",
+                "fee": fee,
+                "duration_minutes": round(duration.total_seconds() / 60)
+            }}
+        )
+        logging.info(f"Exit recorded: {plate_text}, Fee: रू {fee}")
+        return {"event": "exit", "plate": plate_text, "fee": fee}
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -154,18 +213,24 @@ def anpr_api():
 
         # Store in MongoDB
         try:
-            # Flatten results for easier history viewing if there are multiple plates
-            # For now, we store the whole response or the first result as per requirements
+            detected_text = results[0]['final_text'] if results else "No Plate Detected"
             prediction_entry = {
                 "filename": original_filename,
-                "detected_text": results[0]['final_text'] if results else "No Plate Detected",
+                "detected_text": detected_text,
                 "confidence": results[0]['confidence'] if results else 0.0,
                 "timestamp": datetime.datetime.utcnow(),
                 "results": results,
                 "meta": response_data["data"]["meta"]
             }
             predictions_col.insert_one(prediction_entry)
-            logging.info(f"Saved prediction for {original_filename} to MongoDB")
+            
+            # PARKING INTEGRATION
+            parking_result = None
+            if results:
+                parking_result = handle_parking_event(detected_text)
+            
+            response_data["parking"] = parking_result
+            logging.info(f"Saved prediction and handled parking for {original_filename}")
         except Exception as db_err:
             logging.error(f"Failed to save to MongoDB: {db_err}")
 
@@ -245,6 +310,84 @@ def delete_history_item(id):
                 "message": "Failed to delete item."
             }
         }), 500
+
+# NEW PARKING ROUTES
+@app.route('/api/parking/stats', methods=['GET'])
+def get_parking_stats():
+    try:
+        now = get_now()
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        active_count = parking_col.count_documents({"status": "active"})
+        
+        # Calculate daily earnings
+        pipeline = [
+            {"$match": {"status": "completed", "exit_time": {"$gte": start_of_day}}},
+            {"$group": {"_id": None, "total": {"$sum": "$fee"}}}
+        ]
+        earnings_result = list(parking_col.aggregate(pipeline))
+        daily_earnings = earnings_result[0]['total'] if earnings_result else 0
+        
+        return jsonify({
+            "success": True,
+            "data": {
+                "active_vehicles": active_count,
+                "available_slots": 50 - active_count,
+                "daily_earnings": daily_earnings
+            }
+        })
+    except Exception as e:
+        logging.error(f"Error fetching stats: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/parking/active', methods=['GET'])
+def get_active_vehicles():
+    try:
+        active = list(parking_col.find({"status": "active"}).sort("entry_time", -1))
+        for item in active:
+            item['_id'] = str(item['_id'])
+            # Ensure IST-like formatting for frontend display
+            if item.get('entry_time'):
+                et = item['entry_time']
+                if et.tzinfo is None:
+                    et = pytz.utc.localize(et).astimezone(KATHMANDU_TZ)
+                item['entry_time'] = et.isoformat()
+        
+        return jsonify({"success": True, "data": active})
+    except Exception as e:
+        logging.error(f"Error fetching active: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/parking/release/<id>', methods=['POST'])
+def manual_release(id):
+    try:
+        record = parking_col.find_one({"_id": ObjectId(id)})
+        if not record:
+            return jsonify({"success": False, "error": "Record not found"}), 404
+        
+        now = get_now()
+        entry_time = record['entry_time']
+        if entry_time.tzinfo is None:
+            entry_time = pytz.utc.localize(entry_time).astimezone(KATHMANDU_TZ)
+        
+        duration = now - entry_time
+        duration_hours = duration.total_seconds() / 3600
+        rate = 50 if record['vehicle_type'] == "Car" else 20
+        fee = max(20, round(duration_hours * rate))
+
+        parking_col.update_one(
+            {"_id": ObjectId(id)},
+            {"$set": {
+                "status": "completed",
+                "exit_time": now,
+                "fee": fee,
+                "duration_minutes": round(duration.total_seconds() / 60)
+            }}
+        )
+        return jsonify({"success": True, "message": "Vehicle released manually", "fee": fee})
+    except Exception as e:
+        logging.error(f"Error releasing vehicle: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     logging.info("----- Starting ANPR Flask Application API Server -----")

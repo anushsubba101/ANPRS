@@ -1,19 +1,40 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Upload from './components/Upload'
 import Results from './components/Results'
 import History from './components/History'
+import ParkingDashboard from './components/ParkingDashboard'
 import './App.css'
-import { AlertCircle, Camera, Database } from 'lucide-react';
+import { AlertCircle, Camera, Database, ParkingCircle, BellRing, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 function App() {
   const [resultsData, setResultsData] = useState(null);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('scanner'); // 'scanner' or 'history'
+  const [activeTab, setActiveTab] = useState('scanner'); // 'scanner', 'history', or 'parking'
+  const [toasts, setToasts] = useState([]);
+
+  const addToast = (msg, type = 'info') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, msg, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 6000);
+  };
 
   const handleSuccess = (data) => {
     setResultsData(data);
     setError(null);
+
+    // Check for parking event in response
+    if (data.parking) {
+      const { event, plate, type, fee } = data.parking;
+      if (event === 'entry') {
+        addToast(`Vehicle Detected: ${plate} (${type}) - Entered`, 'success');
+      } else if (event === 'exit') {
+        addToast(`Vehicle Exiting: ${plate} - Fee: रू ${fee}`, 'info');
+      }
+    }
+
     // Smooth scroll to results
     setTimeout(() => {
       document.querySelector('.results-section')?.scrollIntoView({ behavior: 'smooth' });
@@ -27,6 +48,40 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Global Toast System */}
+      <div className="toast-portals" style={{ position: 'fixed', top: '2rem', right: '2rem', zIndex: 10000, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div
+              key={t.id}
+              initial={{ x: 100, opacity: 0, scale: 0.9 }}
+              animate={{ x: 0, opacity: 1, scale: 1 }}
+              exit={{ x: 100, opacity: 0, scale: 0.9 }}
+              className="glass-card"
+              style={{
+                padding: '1rem 1.5rem',
+                minWidth: '320px',
+                background: 'rgba(31, 41, 55, 0.95)',
+                borderLeft: `6px solid ${t.type === 'success' ? '#98FFED' : '#0ea5e9'}`,
+                boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '1rem'
+              }}
+            >
+              <BellRing size={20} color={t.type === 'success' ? '#98FFED' : '#0ea5e9'} className="mint-glow" />
+              <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#fff', flex: 1 }}>{t.msg}</p>
+              <button
+                onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))}
+                style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer' }}
+              >
+                <X size={16} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       <header className="app-header">
         <div className="header-top">
           <h1>ANPR System</h1>
@@ -44,6 +99,13 @@ function App() {
             >
               <Database size={18} />
               <span>History</span>
+            </button>
+            <button
+              className={`nav-item ${activeTab === 'parking' ? 'active' : ''}`}
+              onClick={() => setActiveTab('parking')}
+            >
+              <ParkingCircle size={18} />
+              <span>Parking</span>
             </button>
           </nav>
         </div>
@@ -83,8 +145,10 @@ function App() {
 
             <Results data={resultsData} />
           </>
-        ) : (
+        ) : activeTab === 'history' ? (
           <History />
+        ) : (
+          <ParkingDashboard />
         )}
       </main>
 

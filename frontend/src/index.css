@@ -1,47 +1,54 @@
 :root {
-    /* Clean, Calm, Technical Palette */
-    --bg-primary: #9ED5C5;
-    /* Soft Teal - Background */
-    --bg-secondary: #2B2F36;
-    /* Dark Gray - Card/Container */
-    --bg-card: #2B2F36;
-    /* Main Card Background */
-    --bg-card-hover: #353a42;
-    /* Slightly Lighter Dark Gray */
+    /* Modern Dark Mode with Mint Green accents */
+    --bg-primary-gradient: linear-gradient(135deg, #B2F2E8 0%, #FFFFFF 100%);
+    --bg-dark: #111827;
+    /* Darker charcoal for main backgrounds */
+    --bg-card: #1F2937;
+    /* Glassmorphism base */
+    --bg-card-hover: rgba(31, 41, 55, 0.8);
 
     --text-primary: #F9FAFB;
-    /* Off-white */
     --text-secondary: #D1D5DB;
-    /* Light Gray */
     --text-muted: #9CA3AF;
-    /* Muted Gray */
 
-    --accent-primary: #38BDF8;
-    /* Sky Blue - Primary Action */
-    --accent-secondary: #5EEAD4;
-    /* Mint Cyan - Icons/Highlights */
-    --accent-hover: #0EA5E9;
-    /* Darker Sky Blue for Hover */
+    --accent-mint: #98FFED;
+    --accent-glow: rgba(152, 255, 237, 0.5);
 
-    --border-color: #374151;
-    /* Subtle Border */
+    --border-glass: rgba(255, 255, 255, 0.1);
 
     --success: #10b981;
     --warning: #f59e0b;
     --danger: #ef4444;
 
-    --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-family: 'Inter', sans-serif;
 
     --radius-sm: 8px;
     --radius-md: 12px;
     --radius-lg: 20px;
-    /* Increased for softer look */
+    --radius-2xl: 24px;
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-soft: 0 8px 30px rgba(0, 0, 0, 0.12);
-    /* Customizable soft shadow */
+    --shadow-soft: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+    --glass-blur: blur(12px);
+}
+
+.glass-card {
+    background: rgba(31, 41, 55, 0.7);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border-glass);
+    box-shadow: var(--shadow-soft);
+    border-radius: var(--radius-2xl);
+    transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+    border-color: var(--accent-mint);
+    box-shadow: 0 0 15px var(--accent-glow);
+}
+
+.mint-glow {
+    text-shadow: 0 0 10px var(--accent-glow);
+    color: var(--accent-mint);
 }
 
 body {
