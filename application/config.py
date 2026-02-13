@@ -8,8 +8,7 @@ PLATE_MODEL_PATH = os.path.join(APP_ROOT, 'models/best.pt')
 CHAR_SEG_MODEL_PATH = os.path.join(APP_ROOT, 'models/sg_traific_v12.pt')
 CHAR_REC_MODEL_PATH = os.path.join(APP_ROOT, 'models/char_traific_v3.pth')
 
-FONT_PATH = "F:/development/python/Noto_Sans_Devanagari/NotoSansDevanagari-Regular.ttf"
-
+FONT_PATH = os.path.join(APP_ROOT, 'fonts', 'NotoSansDevanagari-VariableFont_wdth,wght.ttf')
 CLASS_LABELS = [
     'क', 'को', 'ख', 'ग', 'च', 'ज', 'झ', 'ञ', 'डि', 'त', 'ना', 'प', 'प्र', 'ब', 'बा',
     'भे', 'म', 'मे', 'य', 'लु', 'सी', 'सु', 'से', 'ह', '0', '१', '२', '३', '४', '५',
