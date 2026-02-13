@@ -3,11 +3,14 @@ import Upload from './components/Upload'
 import Results from './components/Results'
 import History from './components/History'
 import ParkingDashboard from './components/ParkingDashboard'
+import LoginPage from './components/LoginPage'
+import { AuthProvider, useAuth } from './components/AuthContext'
 import './App.css'
-import { AlertCircle, Camera, Database, ParkingCircle, BellRing, X } from 'lucide-react';
+import { AlertCircle, Camera, Database, ParkingCircle, BellRing, X, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-function App() {
+function AppContent() {
+  const { isAuthenticated, logout } = useAuth();
   const [resultsData, setResultsData] = useState(null);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('scanner'); // 'scanner', 'history', or 'parking'
@@ -45,6 +48,10 @@ function App() {
     setError(msg);
     setResultsData(null);
   };
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
 
   return (
     <div className="app-container">
@@ -107,6 +114,14 @@ function App() {
               <ParkingCircle size={18} />
               <span>Parking</span>
             </button>
+            <button
+              className="nav-item logout-btn"
+              onClick={logout}
+              style={{ color: '#ef4444' }}
+            >
+              <LogOut size={18} />
+              <span>Logout</span>
+            </button>
           </nav>
         </div>
         <p>Advanced Automatic Number Plate Recognition for Nepal</p>
@@ -157,6 +172,14 @@ function App() {
       </footer>
     </div>
   )
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
+  );
 }
 
 export default App
