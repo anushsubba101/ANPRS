@@ -6,6 +6,7 @@ import logging
 import tempfile
 import time
 import shutil
+import math
 
 import config
 from model_loader import load_models
@@ -39,8 +40,33 @@ except Exception as load_err:
 logging.info("Model Load")
 
 
+from flask_bcrypt import Bcrypt
+
 app = Flask(__name__)
+bcrypt = Bcrypt(app)
 CORS(app) # Enable CORS for all routes
+
+# Hardcoded Admin Credentials for testing
+ADMIN_EMAIL = "admin@anpr.com"
+ADMIN_PASSWORD_HASH = bcrypt.generate_password_hash("admin123").decode('utf-8')
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if email == ADMIN_EMAIL and bcrypt.check_password_hash(ADMIN_PASSWORD_HASH, password):
+        return jsonify({
+            "success": True,
+            "token": "dummy-admin-token",
+            "message": "Login successful"
+        }), 200
+    
+    return jsonify({
+        "success": False,
+        "message": "Invalid email or password"
+    }), 401
 
 app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER_PATH
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
@@ -95,14 +121,15 @@ def handle_parking_event(plate_text):
         
         # Fee Calculation: Bike 20/hr, Car 50/hr. Min 20.
         rate = 50 if active_record['vehicle_type'] == "Car" else 20
-        fee = max(20, round(duration_hours * rate))
+        # Use math.ceil as requested: ceil(duration_hours) * rate
+        fee = max(20, math.ceil(duration_hours) * rate)
         
         parking_col.update_one(
             {"_id": active_record["_id"]},
             {"$set": {
                 "exit_time": now,
                 "status": "completed",
-                "fee": fee,
+                "total_fee": fee,
                 "duration_minutes": round(duration.total_seconds() / 60)
             }}
         )
