@@ -4,7 +4,7 @@ APP_ROOT = os.path.dirname(os.path.abspath(__file__))
 UPLOAD_FOLDER_NAME = 'anpr_uploads'
 UPLOAD_FOLDER_PATH = os.path.join(APP_ROOT, UPLOAD_FOLDER_NAME)
 
-PLATE_MODEL_PATH = os.path.join(APP_ROOT, 'models/pd_traific_v2_mix.pt')
+PLATE_MODEL_PATH = os.path.join(APP_ROOT, 'models/best.pt')
 CHAR_SEG_MODEL_PATH = os.path.join(APP_ROOT, 'models/sg_traific_v12.pt')
 CHAR_REC_MODEL_PATH = os.path.join(APP_ROOT, 'models/char_traific_v3.pth')
 
