@@ -58,7 +58,7 @@ function HistoryCard({ item, onDelete }) {
             <div className="card-footer">
                 <div className="timestamp">
                     <Calendar size={14} />
-                    <span>{timestamp}</span>
+                    <span>{new Date(timestamp).toLocaleTimeString('en-NP')}</span>
                 </div>
             </div>
 

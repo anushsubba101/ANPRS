@@ -143,7 +143,7 @@ function Upload({ onUploadSuccess, onError }) {
                                     <X size={16} />
                                 </button>
                             </div>
-                            <p className="file-name-label" style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#D1D5DB' }}>{file.name}</p>
+                            <p className="file-name-label" style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#ffffff' }}>{file.name}</p>
                         </div>
                     )}
                 </div>
@@ -158,7 +158,7 @@ function Upload({ onUploadSuccess, onError }) {
                 >
                     {loading ? (
                         <>
-                            <div className="spinner" style={{ width: 20, height: 20, border: '2px solid rgba(0,0,0,0.1)', borderTopColor: '#000' }}></div>
+                            <div className="spinner" style={{ width: 20, height: 20, border: '2px solid #ffffff)', borderTopColor: '#ffffff' }}></div>
                             Analyzing...
                         </>
                     ) : (
@@ -169,7 +169,7 @@ function Upload({ onUploadSuccess, onError }) {
 
             {loading && (
                 <motion.div className="loading-indicator" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <p style={{ color: '#374151' }}>Processing with AI Models...</p>
+                    <p style={{ color: '#ffffff' }}>Processing with AI Models...</p>
                 </motion.div>
             )}
         </div>
