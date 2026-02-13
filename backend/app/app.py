@@ -11,6 +11,9 @@ import config
 from model_loader import load_models
 from image_processing import process_file
 from utils import to_base64
+from pymongo import MongoClient
+from bson import ObjectId
+import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(module)s:%(lineno)d] - %(message)s')
 
@@ -42,6 +45,11 @@ app.config['UPLOAD_FOLDER'] = config.UPLOAD_FOLDER_PATH
 app.config['MAX_CONTENT_LENGTH'] = config.MAX_CONTENT_LENGTH
 app.secret_key = config.FLASK_SECRET_KEY
 
+# Initialize MongoDB
+mongo_client = MongoClient(config.MONGO_URI)
+db = mongo_client[config.MONGO_DB_NAME]
+predictions_col = db[config.MONGO_COLLECTION_NAME]
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
@@ -50,6 +58,7 @@ def health_check():
         "device": str(device) if 'device' in locals() else "unknown"
     })
 
+@app.route('/api/predict', methods=['POST'])
 @app.route('/api/anpr', methods=['POST'])
 def anpr_api():
     """
@@ -131,7 +140,7 @@ def anpr_api():
         duration = end_process_time - start_process_time
         logging.info(f"Processed '{original_filename}' in {duration:.3f}s")
 
-        return jsonify({
+        response_data = {
             "success": True,
             "data": {
                 "results": results,
@@ -141,7 +150,26 @@ def anpr_api():
                     "duration_seconds": round(duration, 3)
                 }
             }
-        }), 200
+        }
+
+        # Store in MongoDB
+        try:
+            # Flatten results for easier history viewing if there are multiple plates
+            # For now, we store the whole response or the first result as per requirements
+            prediction_entry = {
+                "filename": original_filename,
+                "detected_text": results[0]['final_text'] if results else "No Plate Detected",
+                "confidence": results[0]['confidence'] if results else 0.0,
+                "timestamp": datetime.datetime.utcnow(),
+                "results": results,
+                "meta": response_data["data"]["meta"]
+            }
+            predictions_col.insert_one(prediction_entry)
+            logging.info(f"Saved prediction for {original_filename} to MongoDB")
+        except Exception as db_err:
+            logging.error(f"Failed to save to MongoDB: {db_err}")
+
+        return jsonify(response_data), 200
 
     except Exception as e:
         logging.error(f"Processing error for '{original_filename}': {e}", exc_info=True)
@@ -160,6 +188,63 @@ def anpr_api():
                 os.remove(temp_path)
             except Exception as rm_err:
                 logging.warning(f"Failed to cleanup temp file {temp_path}: {rm_err}")
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """
+    Returns the latest 20 predictions from MongoDB.
+    """
+    try:
+        # Fetch latest 20, sorted by timestamp descending
+        history = list(predictions_col.find().sort("timestamp", -1).limit(20))
+        
+        # Convert ObjectId to string for JSON serialization
+        for item in history:
+            item['_id'] = str(item['_id'])
+            # Format timestamp for frontend
+            if isinstance(item.get('timestamp'), datetime.datetime):
+                item['timestamp'] = item['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
+
+        return jsonify({
+            "success": True,
+            "data": history
+        }), 200
+    except Exception as e:
+        logging.error(f"Error fetching history: {e}")
+        return jsonify({
+            "success": False,
+            "error": {
+                "message": "Failed to fetch history."
+            }
+        }), 500
+
+@app.route('/api/history/<id>', methods=['DELETE'])
+def delete_history_item(id):
+    """
+    Deletes a specific history item by its MongoDB ID.
+    """
+    try:
+        result = predictions_col.delete_one({"_id": ObjectId(id)})
+        if result.deleted_count > 0:
+            return jsonify({
+                "success": True,
+                "message": "Item deleted successfully."
+            }), 200
+        else:
+            return jsonify({
+                "success": False,
+                "error": {
+                    "message": "Item not found."
+                }
+            }), 404
+    except Exception as e:
+        logging.error(f"Error deleting history item: {e}")
+        return jsonify({
+            "success": False,
+            "error": {
+                "message": "Failed to delete item."
+            }
+        }), 500
 
 if __name__ == '__main__':
     logging.info("----- Starting ANPR Flask Application API Server -----")

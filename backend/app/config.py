@@ -32,3 +32,8 @@ CHAR_ORDERING_LINE_GAP_FACTOR = 0.5
 FLASK_SECRET_KEY = 'your_very_secret_key_change_me'
 MAX_CONTENT_LENGTH = 32 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.bmp', '.webp', '.mp4', '.avi', '.mov', '.mkv'}
+
+# MongoDB Configuration
+MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
+MONGO_DB_NAME = 'anprs_db'
+MONGO_COLLECTION_NAME = 'predictions'

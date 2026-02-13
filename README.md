@@ -137,3 +137,24 @@ Uploads an image for ANPR processing.
 *   `415 Unsupported Media Type`: Invalid file extension.
 *   `503 Service Unavailable`: Models not loaded.
 *   `500 Internal Server Error`: Processing failure.
+
+
+# for front end
+cd frontend
+npm install
+npm run dev
+
+# for backend
+
+cd backend
+uv sync
+uv run python app.py    
+
+# Backend Verification
+You can use a simple curl or Postman to test the new endpoints (once the server is running):
+
+# Get history
+curl http://localhost:5001/api/history
+
+# Delete an item (replace <id> with an actual _id from history)
+curl -X DELETE http://localhost:5001/api/history/<id>
