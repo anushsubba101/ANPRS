@@ -1,67 +1,160 @@
-# ANPRS
+# ANPRS - Automatic Nepali Number Plate Recognition System
 
-Automatic Number Plate Recognition (ANPR) system designed specifically for Nepali license plates
-## 🔍 Overview
+ANPRS is a full-stack Automatic Number Plate Recognition system tailored for Nepali license plates. It features a robust Python/Flask backend utilizing YOLO and DeepSort for detection and tracking, and a modern React/Vite frontend for a seamless user experience.
 
-This project implements a complete ANPR pipeline:
+## 🚀 Features
 
-1. **Plate Detection** - Detects license plates from images or video frames
-2. **Character Segmentation** - Segments individual characters from the detected plate
-3. **Character Recognition** - Recognizes the segmented characters
+*   **Plate Detection**: Utilizes YOLOv8 for accurate license plate detection.
+*   **Character Segmentation**: Segments individual characters from the plate.
+*   **Character Recognition**: Recognizes Nepali characters using a trained deep learning model.
+*   **Real-time Tracking**: (Backend capability with DeepSort)
+*   **Modern UI**: Responsive React frontend for easy image upload and result visualization.
+
+## 🛠️ Tech Stack
+
+### Backend
+*   **Language**: Python 3.10+
+*   **Framework**: Flask
+*   **ML Libraries**: Ultralytics YOLO, PyTorch, DeepSort Realtime, Lap, NumPy
+*   **Package Manager**: [UV](https://github.com/astral-sh/uv)
+
+### Frontend
+*   **Framework**: React (via Vite)
+*   **Styling**: Tailwind CSS (implied by design patterns), Lucide React (Icons)
+*   **Animation**: Framer Motion
 
 ## 📂 Project Structure
 
 ```
 ANPRS/
-├── application/          # Flask web application
-│   ├── app.py           # Main Flask application
-│   ├── config.py        # Application configuration
-│   ├── model_loader.py  # Model loading utilities
-│   ├── image_processing.py  # Image processing pipeline
-│   ├── templates/       # HTML templates
-│   └── static/          # Static assets (CSS, JS, images)
-├── models/              # Machine learning models
-│   ├── pd-traific/      # Plate detection model
-│   ├── sg/              # Segmentation model
-│   └── char-traiffic/   # Character recognition model
-├── main.py
-├── .python-version
-└── pyproject.toml       # Project dependencies and metadata
+├── backend/             # Flask API and ML Models
+│   ├── app/             # Application source code
+│   │   ├── app.py       # Main Flask entry point
+│   │   ├── config.py    # Configuration settings
+│   │   ├── models/      # PyTorch/YOLO models
+│   │   └── ...
+│   ├── pyproject.toml   # Python dependencies (UV)
+│   └── ...
+├── frontend/            # React Frontend
+│   ├── src/             # React source components
+│   ├── package.json     # Node dependencies
+│   └── ...
+└── README.md            # This file
 ```
 
-## 🚀 Installation
-
-This project uses [UV](https://github.com/astral-sh/uv), an extremely fast Python package and project manager written in Rust. Follow these steps to set up the project:
+## ⚙️ Installation & Setup
 
 ### Prerequisites
 
-1. Python 3.10 or higher
-2. [UV](https://github.com/astral-sh/uv) installed on your system
+*   **Python**: Version 3.10 or higher.
+*   **Node.js**: Version 18+ recommended.
+*   **UV**: High-performance Python package manager (`pip install uv` or follow [official docs](https://github.com/astral-sh/uv)).
 
-### Install Dependencies with UV
+### Backend Setup
 
-```bash
+1.  Navigate to the backend directory:
+    ```bash
+    cd backend
+    ```
+
+2.  Install dependencies using UV:
+    ```bash
+    uv sync
+    ```
+
+3.  **Configuration Check**:
+    > [!IMPORTANT]
+    > Open `backend/app/config.py` and ensure the `FONT_PATH` matches your system's font location if you need to render specific text on images. Currently, it might be pointing to a development path like `F:/development/...`. Update it to a valid path or ensure the font exists.
+
+4.  Run the backend server:
+    ```bash
+    cd app
+    uv run python app.py
+    ```
+    The server will start at `http://0.0.0.0:5001`.
+
+### Frontend Setup
+
+1.  Open a new terminal and navigate to the frontend directory:
+    ```bash
+    cd frontend
+    ```
+
+2.  Install dependencies:
+    ```bash
+    npm install
+    ```
+
+3.  Run the development server:
+    ```bash
+    npm run dev
+    ```
+    The frontend will typically be available at `http://localhost:5173`.
+
+## 📖 Usage
+
+1.  Ensure both the Backend and Frontend servers are running.
+2.  Open your browser and navigate to the Frontend URL (e.g., `http://localhost:5173`).
+3.  Use the "Upload" feature to select an image of a vehicle with a Nepali license plate.
+4.  View the processed results, including the detected plate, segmented characters, and recognized text.
+
+## 🔌 API Documentation
+
+### `POST /api/anpr`
+
+Uploads an image for ANPR processing.
+
+**Request:**
+*   **Content-Type**: `multipart/form-data`
+*   **Body**: `file` (The image file: .jpg, .png, .jpeg, etc.)
+
+**Success Response (200 OK):**
+```json
+{
+    "success": true,
+    "data": {
+        "results": [
+            {
+                "confidence": 0.89,
+                "final_text": "BAA 1234",
+                "plate_dimensions": { "width": 200, "height": 60 },
+                "original_plate": "<base64_string>",
+                "deskewed_plate": "<base64_string>",
+                "digital_plate": "<base64_string>"
+            }
+        ],
+        "meta": {
+            "filename": "car_image.jpg",
+            "processed_at": "2024-03-20T10:00:00+05:45",
+            "duration_seconds": 0.452
+        }
+    }
+}
+```
+
+**Error Responses:**
+*   `400 Bad Request`: Missing file or no filename.
+*   `415 Unsupported Media Type`: Invalid file extension.
+*   `503 Service Unavailable`: Models not loaded.
+*   `500 Internal Server Error`: Processing failure.
+
+
+# for front end
+cd frontend
+npm install
+npm run dev
+
+# for backend
+
+cd backend
 uv sync
-```
+uv run python app.py    
 
-This will install all dependencies defined in the `pyproject.toml` file.
+# Backend Verification
+You can use a simple curl or Postman to test the new endpoints (once the server is running):
 
-## 🏃 Running the Application
+# Get history
+curl http://localhost:5001/api/history
 
-Start the Flask application:
-
-```bash
-cd application
-python -m flask run -p 3000
-```
-
-The web interface will be available at `http://127.0.0.1:3000/`
-
-## 🔄 Pipeline Process
-
-The ANPR system follows this workflow:
-
-1. **Plate Detection (PD)**: Uses YOLOv8-based model to detect license plates in images
-2. **Segmentation (SG)**: Isolates and segments characters from the detected plate
-3. **Character Recognition (CHAR)**: Recognizes individual characters using a trained model
-
+# Delete an item (replace <id> with an actual _id from history)
+curl -X DELETE http://localhost:5001/api/history/<id>
