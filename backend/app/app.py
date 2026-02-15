@@ -77,6 +77,13 @@ mongo_client = MongoClient(config.MONGO_URI)
 db = mongo_client[config.MONGO_DB_NAME]
 predictions_col = db[config.MONGO_COLLECTION_NAME]
 parking_col = db['parking_records']
+parking_slots_col = db['parking_slots']
+
+# Initialize parking slots if not exists
+if parking_slots_col.count_documents({}) == 0:
+    logging.info("Initializing parking_slots collection with 50 slots...")
+    slots = [{"slot_number": f"A-{str(i).zfill(2)}", "occupied": False} for i in range(1, 51)]
+    parking_slots_col.insert_many(slots)
 
 KATHMANDU_TZ = pytz.timezone('Asia/Kathmandu')
 
@@ -93,6 +100,15 @@ def handle_parking_event(plate_text):
 
     if not active_record:
         # ENTRY LOGIC
+        # Find first available slot
+        slot = parking_slots_col.find_one_and_update(
+            {"occupied": False},
+            {"$set": {"occupied": True}},
+            sort=[("slot_number", 1)]
+        )
+        
+        slot_number = slot["slot_number"] if slot else "N/A"
+        
         # Determine type: 'च' (Car) or 'प' (Bike)
         vehicle_type = "unknown"
         if 'च' in plate_text:
@@ -104,11 +120,23 @@ def handle_parking_event(plate_text):
             "plate_number": plate_text,
             "entry_time": now,
             "status": "active",
-            "vehicle_type": vehicle_type
+            "vehicle_type": vehicle_type,
+            "slot_number": slot_number
         }
         parking_col.insert_one(entry_doc)
-        logging.info(f"Entry recorded: {plate_text} ({vehicle_type})")
-        return {"event": "entry", "plate": plate_text, "type": vehicle_type}
+        logging.info(f"Entry recorded: {plate_text} ({vehicle_type}) at slot {slot_number}")
+        return {
+            "event": "entry", 
+            "plate": plate_text, 
+            "type": vehicle_type, 
+            "slot_number": slot_number,
+            "gate_status": "OPEN",
+            "token": {
+                "plate_number": plate_text,
+                "type": vehicle_type,
+                "slot_number": slot_number
+            }
+        }
     
     else:
         # EXIT LOGIC
@@ -133,8 +161,21 @@ def handle_parking_event(plate_text):
                 "duration_minutes": round(duration.total_seconds() / 60)
             }}
         )
+        # Release slot
+        if active_record.get('slot_number') and active_record['slot_number'] != "N/A":
+            parking_slots_col.update_one(
+                {"slot_number": active_record['slot_number']},
+                {"$set": {"occupied": False}}
+            )
+
         logging.info(f"Exit recorded: {plate_text}, Fee: रू {fee}")
-        return {"event": "exit", "plate": plate_text, "fee": fee}
+        return {
+            "event": "exit", 
+            "plate": plate_text, 
+            "fee": fee, 
+            "slot_number": active_record.get('slot_number'),
+            "gate_status": "OPEN"
+        }
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -212,6 +253,7 @@ def anpr_api():
 
         logging.info(f"Processing secure file: {original_filename}")
         
+        # Results Processing
         start_process_time = time.time()
         results = process_file(
             temp_path,
@@ -224,8 +266,7 @@ def anpr_api():
         end_process_time = time.time()
         
         duration = end_process_time - start_process_time
-        logging.info(f"Processed '{original_filename}' in {duration:.3f}s")
-
+        logging.info(f"Processed '{original_filename}' in {duration:.3f}s. Found {len(results)} plates.")
         response_data = {
             "success": True,
             "data": {
@@ -237,8 +278,17 @@ def anpr_api():
                 }
             }
         }
+        print(f"DEBUG [API]: response_data prepared for {original_filename}")
 
-        # Store in MongoDB
+        # Handle empty detection feedback
+        if not results:
+             print(f"DEBUG [API]: No results found for {original_filename}. Returning 400.")
+             return jsonify({
+                "success": False,
+                "message": "No license plate detected. Please try a clearer image."
+            }), 400
+
+        # Store in MongoDB and handle parking (Step 2: Logic Audit)
         try:
             detected_text = results[0]['final_text'] if results else "No Plate Detected"
             prediction_entry = {
@@ -251,16 +301,38 @@ def anpr_api():
             }
             predictions_col.insert_one(prediction_entry)
             
-            # PARKING INTEGRATION
-            parking_result = None
-            if results:
-                parking_result = handle_parking_event(detected_text)
-            
-            response_data["parking"] = parking_result
+            # PARKING INTEGRATION - Wrapped for robustness
+            try:
+                parking_result = None
+                if results:
+                    print(f"DEBUG [API]: Starting parking logic for {detected_text}")
+                    parking_result = handle_parking_event(detected_text)
+                    print(f"DEBUG [API]: Parking logic result: {parking_result}")
+                    
+                    if parking_result:
+                        response_data["gate_status"] = parking_result.get("gate_status", "CLOSED")
+                        response_data["plate"] = parking_result.get("plate", detected_text)
+                        response_data["slot"] = parking_result.get("slot_number", "N/A")
+                        response_data["token"] = parking_result.get("token")
+                    else:
+                        response_data["gate_status"] = "CLOSED"
+                        response_data["plate"] = detected_text
+                        response_data["slot"] = "N/A"
+                
+                response_data["parking"] = parking_result
+            except Exception as park_err:
+                print(f"DEBUG [API]: Error in parking integration: {park_err}")
+                logging.error(f"Failed parking logic: {park_err}", exc_info=True)
+                response_data["parking"] = None # Ensure it doesn't break the response
+                response_data["gate_status"] = "CLOSED"
+
             logging.info(f"Saved prediction and handled parking for {original_filename}")
         except Exception as db_err:
+            print(f"DEBUG [API]: Error in DB/Parking block: {db_err}")
             logging.error(f"Failed to save to MongoDB: {db_err}")
+            response_data["gate_status"] = "CLOSED"
 
+        print(f"DEBUG [API]: Returning 200 SUCCESS for {original_filename}")
         return jsonify(response_data), 200
 
     except Exception as e:

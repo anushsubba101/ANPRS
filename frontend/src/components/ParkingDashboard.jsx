@@ -4,8 +4,7 @@ import { Car, CheckCircle, Banknote, ShieldCheck, Activity, LogOut, Loader2 } fr
 
 const API_BASE = 'http://localhost:5001/api';
 
-const ParkingDashboard = () => {
-    const [stats, setStats] = useState({ active_vehicles: 0, available_slots: 50, daily_earnings: 0 });
+const ParkingDashboard = ({ gateStatus, onReleaseSuccess, parkingStats, setParkingStats }) => {
     const [vehicles, setVehicles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [notifs, setNotifs] = useState([]);
@@ -27,7 +26,7 @@ const ParkingDashboard = () => {
             const statsData = await statsRes.json();
             const activeData = await activeRes.json();
 
-            if (statsData.success) setStats(statsData.data);
+            if (statsData.success) setParkingStats(statsData.data);
             if (activeData.success) setVehicles(activeData.data);
         } catch (err) {
             console.error("Fetch error:", err);
@@ -35,7 +34,7 @@ const ParkingDashboard = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [setParkingStats]);
 
     useEffect(() => {
         fetchData();
@@ -44,11 +43,20 @@ const ParkingDashboard = () => {
     }, [fetchData]);
 
     const handleManualRelease = async (id) => {
+        // Find vehicle before release to get plate number for history update
+        const vehicle = vehicles.find(v => v._id === id);
+        if (!vehicle) return;
+
         try {
             const res = await fetch(`${API_BASE}/parking/release/${id}`, { method: 'POST' });
             const data = await res.json();
             if (data.success) {
                 addNotification(`Vehicle released. Fee: रू ${data.fee}`, "success");
+
+                // Trigger global sync for history and local stats increment
+                onReleaseSuccess(vehicle.plate_number);
+
+                // Refresh list
                 fetchData();
             } else {
                 addNotification(data.error || "Release failed", "error");
@@ -87,27 +95,30 @@ const ParkingDashboard = () => {
             </div>
 
             <header style={{ marginBottom: '3rem' }}>
-                <h1 style={{ color: 'var(--bg-dark)', marginBottom: '1.5rem', fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.025em' }}>
-                    Parking <span className="mint-glow" style={{ color: '#0ea5e9' }}>Management</span>
-                </h1>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h1 style={{ color: 'var(--bg-dark)', margin: 0, fontSize: '2.25rem', fontWeight: 800, letterSpacing: '-0.025em' }}>
+                        Parking <span className="mint-glow" style={{ color: '#0ea5e9' }}>Management</span>
+                    </h1>
+
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
                     <StatCard
                         icon={<Activity size={24} color="#98FFED" />}
                         label="Active Vehicles"
-                        value={stats.active_vehicles}
+                        value={parkingStats.active_vehicles}
                         delay={0.1}
                     />
                     <StatCard
                         icon={<CheckCircle size={24} color="#98FFED" />}
                         label="Available Slots"
-                        value={stats.available_slots}
+                        value={parkingStats.available_slots}
                         highlight
                         delay={0.2}
                     />
                     <StatCard
                         icon={<Banknote size={24} color="#98FFED" />}
                         label="Daily Earnings"
-                        value={`रू ${stats.daily_earnings.toLocaleString()}`}
+                        value={`रू ${parkingStats.daily_earnings.toLocaleString()}`}
                         delay={0.3}
                     />
                 </div>
