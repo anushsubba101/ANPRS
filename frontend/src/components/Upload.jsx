@@ -68,6 +68,7 @@ function Upload({ onUploadSuccess, onError }) {
         if (!file) return;
 
         setLoading(true);
+        onError(null); // Clear previous errors (Step 3: State Sync)
         const formData = new FormData();
         formData.append('file', file);
 
@@ -84,7 +85,7 @@ function Upload({ onUploadSuccess, onError }) {
                 throw new Error(responseData.error?.message || 'Processing failed');
             }
 
-            onUploadSuccess(responseData.data);
+            onUploadSuccess(responseData);
             // Don't clear preview immediately so ui doesn't jump, let parent handle view switch if needed
         } catch (err) {
             console.error(err);

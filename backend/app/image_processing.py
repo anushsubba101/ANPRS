@@ -7,7 +7,7 @@ import config
 from utils import to_base64
 from character_processing import deskew_plate, process_and_order_characters, create_digital_plate
 
-def process_frame(frame, frame_number, filename_prefix, plate_model, seg_model, recog_model, device, ocr_font):
+def process_frame(frame, frame_number, filename_prefix, plate_model, seg_model, recog_model, device, ocr_font, source=None):
     if plate_model is None or seg_model is None or recog_model is None:
         logging.error(f"One or more models are not loaded. Cannot process frame {frame_number} from {filename_prefix}.")
         return []
@@ -21,13 +21,24 @@ def process_frame(frame, frame_number, filename_prefix, plate_model, seg_model, 
     logging.debug(f"Processing Frame: {frame_number} from '{filename_prefix}' ({w_frame}x{h_frame})")
 
     try:
-        plate_results = plate_model.predict(frame, verbose=False, conf=config.PLATE_DETECT_CONF)
+        # Use source path if available (more robust for some YOLO versions), otherwise use frame
+        predict_input = source if source is not None else frame
+        plate_results = plate_model.predict(predict_input, verbose=False, conf=config.PLATE_DETECT_CONF)
+        
+        # VERBOSE DEBUGGING (Step 1)
+        if plate_results and len(plate_results) > 0:
+            boxes = plate_results[0].boxes
+            print(f"DEBUG [YOLO]: Detected {len(boxes)} boxes in {filename_prefix}")
+            if len(boxes) > 0:
+                print(f"DEBUG [YOLO]: Confidences: {boxes.conf.tolist()}")
+        else:
+            print(f"DEBUG [YOLO]: No plate_results for {filename_prefix}")
     except Exception as e:
         logging.error(f"Plate detection failed on frame {frame_number} ({filename_prefix}): {e}", exc_info=True)
         return [] # Cannot proceed without plate detection
 
-    if not plate_results or not plate_results[0].boxes:
-        logging.debug(f"No plates detected in frame {frame_number} ({filename_prefix}).")
+    if not plate_results or len(plate_results[0].boxes) == 0:
+        logging.info(f"No plates detected in frame {frame_number} ({filename_prefix}). Results empty: {not plate_results}, Boxes count: {len(plate_results[0].boxes) if plate_results else 'N/A'}")
         return []
 
     detected_boxes = plate_results[0].boxes
@@ -112,7 +123,7 @@ def process_frame(frame, frame_number, filename_prefix, plate_model, seg_model, 
             continue # Move to the next detected plate
 
     end_time = time.time()
-    logging.debug(f"Frame {frame_number} processing took {end_time - start_time:.3f} seconds. Found {len(frame_results_list)} valid plates.")
+    logging.info(f"Frame {frame_number} ({filename_prefix}) processing took {end_time - start_time:.3f}s. Plates found: {len(frame_results_list)}")
     return frame_results_list
 
 
@@ -136,7 +147,7 @@ def process_file(file_path, plate_model, seg_model, recog_model, device, ocr_fon
                 if frame is None:
                     logging.error(f"Could not read image file: {file_path}")
                     return []
-                results_list = process_frame(frame, 0, filename, plate_model, seg_model, recog_model, device, ocr_font)
+                results_list = process_frame(frame, 0, filename, plate_model, seg_model, recog_model, device, ocr_font, source=file_path)
             except Exception as e:
                 logging.error(f"Error processing image {filename}: {e}", exc_info=True)
 

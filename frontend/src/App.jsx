@@ -4,7 +4,9 @@ import Results from './components/Results'
 import History from './components/History'
 import ParkingDashboard from './components/ParkingDashboard'
 import LoginPage from './components/LoginPage'
+import ParkingToken from './components/ParkingToken'
 import { AuthProvider, useAuth } from './components/AuthContext'
+import Dashboard from './components/Dashboard'
 import './App.css'
 import { AlertCircle, Camera, Database, ParkingCircle, BellRing, X, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,8 +15,19 @@ function AppContent() {
   const { isAuthenticated, logout } = useAuth();
   const [resultsData, setResultsData] = useState(null);
   const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('scanner'); // 'scanner', 'history', or 'parking'
+  const [activeTab, setActiveTab] = useState('scanner');
   const [toasts, setToasts] = useState([]);
+  const [gateStatus, setGateStatus] = useState('CLOSED');
+  const [tokenHistory, setTokenHistory] = useState([]);
+  const [tokenData, setTokenData] = useState(null);
+  const [parkingStats, setParkingStats] = useState({ active_vehicles: 0, available_slots: 50, daily_earnings: 0 });
+
+  useEffect(() => {
+    if (gateStatus === 'OPEN') {
+      const timer = setTimeout(() => setGateStatus('CLOSED'), 7000);
+      return () => clearTimeout(timer);
+    }
+  }, [gateStatus]);
 
   const addToast = (msg, type = 'info') => {
     const id = Date.now();
@@ -28,13 +41,26 @@ function AppContent() {
     setResultsData(data);
     setError(null);
 
+    // Update global stats if available in response or fetch after scan
+    if (data.plate && data.slot) {
+      setParkingStats(prev => ({
+        ...prev,
+        active_vehicles: prev.active_vehicles + 1,
+        available_slots: Math.max(0, prev.available_slots - 1)
+      }));
+    }
+
     // Check for parking event in response
     if (data.parking) {
-      const { event, plate, type, fee } = data.parking;
+      const { event, plate, type, fee, slot_number } = data.parking;
       if (event === 'entry') {
-        addToast(`Vehicle Detected: ${plate} (${type}) - Entered`, 'success');
+        addToast(`Vehicle Entered: ${plate} - Slot ${slot_number}`, 'success');
+        setTokenData({ plate_number: plate, type, slot_number });
+        setGateStatus('OPEN');
       } else if (event === 'exit') {
         addToast(`Vehicle Exiting: ${plate} - Fee: रू ${fee}`, 'info');
+        setGateStatus('OPEN');
+        handleReleaseVehicle(plate);
       }
     }
 
@@ -42,6 +68,20 @@ function AppContent() {
     setTimeout(() => {
       document.querySelector('.results-section')?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
+  };
+
+  const handleReleaseVehicle = (plate) => {
+    // Update History Sidebar: Active -> Expired
+    setTokenHistory(prev => prev.map(entry =>
+      entry.plate_number === plate ? { ...entry, status: 'Expired' } : entry
+    ));
+
+    // Update Stats: Available Slots +1
+    setParkingStats(prev => ({
+      ...prev,
+      active_vehicles: Math.max(0, prev.active_vehicles - 1),
+      available_slots: Math.min(50, prev.available_slots + 1)
+    }));
   };
 
   const handleError = (msg) => {
@@ -129,41 +169,25 @@ function AppContent() {
 
       <main>
         {activeTab === 'scanner' ? (
-          <>
-            <Upload onUploadSuccess={handleSuccess} onError={handleError} />
-
-            <AnimatePresence>
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  className="error-banner"
-                  style={{
-                    margin: '2rem auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '1rem',
-                    background: 'rgba(239, 68, 68, 0.1)',
-                    border: '1px solid rgba(239, 68, 68, 0.2)',
-                    padding: '1rem 1.5rem',
-                    borderRadius: 'var(--radius-md)',
-                    color: '#f87171',
-                    maxWidth: '600px'
-                  }}
-                >
-                  <AlertCircle size={24} />
-                  <span>{error}</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <Results data={resultsData} />
-          </>
+          <Dashboard
+            gateStatus={gateStatus}
+            setGateStatus={setGateStatus}
+            tokenHistory={tokenHistory}
+            setTokenHistory={setTokenHistory}
+            tokenData={tokenData}
+            setTokenData={setTokenData}
+            parkingStats={parkingStats}
+            setParkingStats={setParkingStats}
+          />
         ) : activeTab === 'history' ? (
           <History />
         ) : (
-          <ParkingDashboard />
+          <ParkingDashboard
+            gateStatus={gateStatus}
+            onReleaseSuccess={handleReleaseVehicle}
+            parkingStats={parkingStats}
+            setParkingStats={setParkingStats}
+          />
         )}
       </main>
 
